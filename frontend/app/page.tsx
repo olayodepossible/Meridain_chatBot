@@ -5,6 +5,9 @@ import { Bot, LogIn, UserPlus } from 'lucide-react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+const afterSignInPath =
+  process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL?.trim() || '/dashboard';
+
 export default function Home() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
@@ -15,7 +18,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      router.replace('/dashboard');
+      router.replace(afterSignInPath.startsWith('/') ? afterSignInPath : '/dashboard');
     }
   }, [isLoaded, isSignedIn, router]);
 
@@ -47,14 +50,20 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
-            <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+            <SignInButton mode="modal" forceRedirectUrl={afterSignInPath}>
               <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800 px-6 py-3 font-semibold text-white transition hover:bg-slate-900">
                 <LogIn className="h-5 w-5" />
                 Login
               </button>
             </SignInButton>
 
-            <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
+            <SignUpButton
+              mode="modal"
+              forceRedirectUrl={
+                process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL?.trim() ||
+                afterSignInPath
+              }
+            >
               <button className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-6 py-3 font-semibold text-slate-800 transition hover:bg-slate-50">
                 <UserPlus className="h-5 w-5" />
                 Sign Up

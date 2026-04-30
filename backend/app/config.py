@@ -6,6 +6,8 @@ import os
 
 from dotenv import load_dotenv
 
+load_dotenv(override=True)
+
 class Settings(BaseSettings):
     """Runtime configuration loaded from environment variables."""
 

@@ -176,8 +176,18 @@ if ($env:GITHUB_ACTIONS -eq "true" -and [string]::IsNullOrWhiteSpace($env:NEXT_P
     exit 1
 }
 
-Write-Host "Setting API URL for production..." -ForegroundColor Yellow
-"NEXT_PUBLIC_API_URL=$ApiUrl" | Out-File .env.production -Encoding utf8
+Write-Host "Setting production env for Next build..." -ForegroundColor Yellow
+$afterIn = if (-not [string]::IsNullOrWhiteSpace($env:NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL)) {
+    $env:NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL.Trim()
+} else { '/dashboard' }
+$afterUp = if (-not [string]::IsNullOrWhiteSpace($env:NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL)) {
+    $env:NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL.Trim()
+} else { $afterIn }
+@(
+    "NEXT_PUBLIC_API_URL=$ApiUrl",
+    "NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=$afterIn",
+    "NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=$afterUp"
+) | Set-Content -Path '.env.production' -Encoding utf8
 
 npm install
 if ($LASTEXITCODE -ne 0) { throw "npm install failed." }
