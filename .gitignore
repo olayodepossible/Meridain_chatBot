@@ -10,6 +10,8 @@ terraform.tfstate.d/
 # Lambda packages
 lambda-deployment.zip
 lambda-package/
+.lambda_build/
+.lambda_requirements_export.txt
 
 # Environment files
 .env

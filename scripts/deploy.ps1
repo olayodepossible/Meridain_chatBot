@@ -70,9 +70,19 @@ if ($env:GITHUB_ACTIONS -eq "true") {
 }
 
 Write-Host "Building Lambda package..." -ForegroundColor Yellow
-Set-Location backend
-uv run deploy.py
-Set-Location ..
+$backendDir = Join-Path $ProjectRoot "backend"
+if (-not (Test-Path -LiteralPath $backendDir -PathType Container)) {
+    Write-Error "Missing directory: $backendDir. The Python app must live at repo root in 'backend/' (same path Terraform uses for lambda-deployment.zip)."
+    exit 1
+}
+Push-Location $backendDir
+try {
+    uv run deploy.py
+    if ($LASTEXITCODE -ne 0) { throw "uv run deploy.py failed ($LASTEXITCODE)." }
+}
+finally {
+    Pop-Location
+}
 
 # 2. Terraform workspace & apply
 Set-Location terraform
