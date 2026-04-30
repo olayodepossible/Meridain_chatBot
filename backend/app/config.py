@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     openai_api_key: str = Field(default="", repr=False)
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-4.1-mini"
     max_tool_steps: int = 6
 
     mcp_server_url: HttpUrl = "https://order-mcp-74afyau24q-uc.a.run.app/mcp"

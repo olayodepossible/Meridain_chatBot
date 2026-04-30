@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory=$false)]
     [string]$Environment = "dev",  #Defaults to 'dev' if no value provided
-    [string]$ProjectName = "digital-twin"
+    [string]$ProjectName = "meridian-chatbot"
 )
 
 $ErrorActionPreference = "Stop"
@@ -95,7 +95,7 @@ $awsRegion = if (-not [string]::IsNullOrWhiteSpace($env:DEFAULT_AWS_REGION)) {
 # Splat args so pwsh never treats "--" / continuation lines as operators (fixes GHA / Linux).
 $initArgs = @(
     'init', '-input=false',
-    "-backend-config=bucket=twin-terraform-state-$awsAccountId",
+    "-backend-config=bucket=meridian-terraform-state-$awsAccountId",
     "-backend-config=key=$Environment/terraform.tfstate",
     "-backend-config=region=$awsRegion",
     '-backend-config=use_lockfile=true',
