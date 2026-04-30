@@ -189,9 +189,21 @@ resource "aws_apigatewayv2_route" "get_root" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_route" "post_chat" {
+resource "aws_apigatewayv2_route" "post_api_chat" {
   api_id    = aws_apigatewayv2_api.main.id
-  route_key = "POST /chat"
+  route_key = "POST /api/chat"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "options_api_chat" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "OPTIONS /api/chat"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_api_tools" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /api/tools"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
