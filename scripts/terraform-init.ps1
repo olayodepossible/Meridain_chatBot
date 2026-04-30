@@ -5,6 +5,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$ScriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($ScriptRoot)) {
+    $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrWhiteSpace($ScriptRoot)) {
+    $ScriptRoot = Split-Path -Parent $PSCommandPath
+}
+
 function Get-TerraformExe {
     $cmd = Get-Command terraform -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Path }
@@ -24,7 +32,7 @@ function Get-TerraformExe {
     return $null
 }
 
-$ProjectRoot = Split-Path $PSScriptRoot -Parent
+$ProjectRoot = Split-Path -Parent $ScriptRoot
 $awsAccountId = (aws sts get-caller-identity '--query' 'Account' '--output' 'text').Trim()
 if ([string]::IsNullOrWhiteSpace($awsAccountId)) {
     throw "Could not read AWS account id (aws sts get-caller-identity)."
@@ -46,7 +54,7 @@ if (-not $tf) {
     throw "Terraform not found on PATH or common install locations."
 }
 
-& (Join-Path $PSScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
+& (Join-Path $ScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
 
 Set-Location (Join-Path $ProjectRoot "terraform")
 

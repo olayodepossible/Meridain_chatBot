@@ -6,6 +6,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$ScriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($ScriptRoot)) {
+    $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrWhiteSpace($ScriptRoot)) {
+    $ScriptRoot = Split-Path -Parent $PSCommandPath
+}
+
 function Get-TerraformExe {
     $cmd = Get-Command terraform -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Path }
@@ -35,7 +43,7 @@ if ($Environment -notmatch '^(dev|test|prod)$') {
 Write-Host "Preparing to destroy $ProjectName-$Environment infrastructure..." -ForegroundColor Red
 
 # 1. Setup Environment & Paths
-$ProjectRoot = Split-Path $PSScriptRoot -Parent
+$ProjectRoot = Split-Path -Parent $ScriptRoot
 Set-Location (Join-Path $ProjectRoot "terraform")
 
 # Load .env for variable bridging (needed for TF validation)
@@ -75,7 +83,7 @@ if (-not $tf) {
 }
 
 # Ensure backend exists before init
-& (Join-Path $PSScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
+& (Join-Path $ScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
 
 Write-Host "Initializing Terraform..." -ForegroundColor Yellow
 $initArgs = @(

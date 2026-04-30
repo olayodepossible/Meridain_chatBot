@@ -6,6 +6,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# $PSScriptRoot can be empty in some CI contexts; resolve script directory explicitly.
+$ScriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($ScriptRoot)) {
+    $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrWhiteSpace($ScriptRoot)) {
+    $ScriptRoot = Split-Path -Parent $PSCommandPath
+}
+
 function Get-TerraformExe {
     $cmd = Get-Command terraform -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Path }
@@ -28,7 +37,7 @@ function Get-TerraformExe {
 Write-Host "Deploying $ProjectName to $Environment ..." -ForegroundColor Green
 
 # 1. Build Lambda package
-$ProjectRoot = Split-Path $PSScriptRoot -Parent
+$ProjectRoot = Split-Path -Parent $ScriptRoot
 Set-Location $ProjectRoot
 
 # Load .env variables into the Process environment
@@ -100,7 +109,7 @@ $awsRegion = if (-not [string]::IsNullOrWhiteSpace($env:DEFAULT_AWS_REGION)) {
 }
 
 # Ensure S3 Backend exists (Fix for LocationConstraint handled inside this script)
-& (Join-Path $PSScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
+& (Join-Path $ScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
 
 # Splat args so pwsh never treats "--" / continuation lines as operators (fixes GHA / Linux).
 $initArgs = @(

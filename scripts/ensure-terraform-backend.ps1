@@ -87,31 +87,15 @@ Invoke-Aws @(
     '--versioning-configuration', 'Status=Enabled'
 )
 
-# ---- Configure Encryption (FILE-BASED — SAFE) ----
+# ---- Configure encryption (inline JSON: Linux runners often have no $env:TEMP; file:// is fragile) ----
 Write-Host "Applying server-side encryption..." -ForegroundColor Yellow
 
-$encFile = Join-Path $env:TEMP "s3-encryption.json"
-
-$encJson = @{
-    Rules = @(
-        @{
-            ApplyServerSideEncryptionByDefault = @{
-                SSEAlgorithm = "AES256"
-            }
-        }
-    )
-} | ConvertTo-Json -Depth 5
-
-[System.IO.File]::WriteAllText($encFile, $encJson)
-
-# Debug (optional)
-Write-Host "Encryption JSON:" -ForegroundColor Gray
-Get-Content $encFile
+$encJson = '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 
 Invoke-Aws @(
     's3api', 'put-bucket-encryption',
     '--bucket', $bucketName,
-    '--server-side-encryption-configuration', "file://$encFile"
+    '--server-side-encryption-configuration', $encJson
 )
 
 # ---- Block Public Access ----
