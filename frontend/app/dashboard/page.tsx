@@ -1,7 +1,28 @@
-import { UserButton } from '@clerk/nextjs';
+'use client';
+
+import { UserButton, useUser } from '@clerk/clerk-react';
 import ChatBot from '@/components/chatBot';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function Dashboard() {
+  const { isSignedIn, isLoaded } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.replace('/');
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  if (!isLoaded || !isSignedIn) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-gray-100 text-gray-600">
+        Loading…
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       <div className="container mx-auto px-4 py-8">

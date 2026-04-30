@@ -168,8 +168,13 @@ if ([string]::IsNullOrWhiteSpace($FrontendBucket)) {
 Write-Host "Deploying to bucket: $FrontendBucket" -ForegroundColor Gray
 try { $CustomUrl = & $tf @('output', '-raw', 'custom_domain_url') } catch { $CustomUrl = "" }
 
-# 3. Build + deploy frontend
+# 3. Build + deploy frontend (next.config uses output: "export" → frontend/out)
 Set-Location ..\frontend
+
+if ($env:GITHUB_ACTIONS -eq "true" -and [string]::IsNullOrWhiteSpace($env:NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)) {
+    Write-Error "Add repository secret NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (Clerk publishable key) — required for static Next.js build in CI."
+    exit 1
+}
 
 Write-Host "Setting API URL for production..." -ForegroundColor Yellow
 "NEXT_PUBLIC_API_URL=$ApiUrl" | Out-File .env.production -Encoding utf8
@@ -181,7 +186,7 @@ if ($LASTEXITCODE -ne 0) { throw "npm run build failed." }
 
 $frontendOut = Join-Path (Get-Location) "out"
 if (-not (Test-Path -Path $frontendOut -PathType Container)) {
-    throw "Static export folder not found: $frontendOut."
+    throw "Static export folder not found: $frontendOut. Ensure next.config has output: 'export' and the build succeeded."
 }
 
 & $tf @('output')

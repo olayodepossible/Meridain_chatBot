@@ -2,7 +2,9 @@ from functools import lru_cache
 
 from pydantic import Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 
+from dotenv import load_dotenv
 
 class Settings(BaseSettings):
     """Runtime configuration loaded from environment variables."""
@@ -13,7 +15,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
-    openai_api_key: str = Field(default="", repr=False)
+    openai_api_key:  str | None = os.getenv("OPENROUTER_API_KEY")
     openai_model: str = "gpt-4.1-mini"
     max_tool_steps: int = 6
 

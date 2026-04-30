@@ -1,6 +1,6 @@
 'use client';
 
-import { SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
+import { SignInButton, SignUpButton, useUser } from '@clerk/clerk-react';
 import { Bot, LogIn, UserPlus } from 'lucide-react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';

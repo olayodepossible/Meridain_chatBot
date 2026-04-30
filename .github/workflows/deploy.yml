@@ -68,6 +68,16 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
+      - name: Verify NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (repository secret)
+        run: |
+          if [ -z "${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" ]; then
+            echo "::error::NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is missing. Add it under Settings → Secrets and variables → Actions (same value as Clerk Dashboard → API Keys → Publishable key)."
+            exit 1
+          fi
+          echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is present (value is not printed)."
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+
       - name: Run Deployment Script
         run: |
           pwsh -File ./scripts/deploy.ps1 -Environment "${{ github.event.inputs.environment || 'dev' }}"
@@ -76,6 +86,8 @@ jobs:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Next.js static export bakes NEXT_PUBLIC_* at build time (same value as in Clerk Dashboard → API Keys).
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           
       - name: Get Deployment URLs
         id: deploy_outputs

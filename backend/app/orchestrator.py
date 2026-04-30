@@ -20,7 +20,7 @@ class AIOrchestrator:
             raise ValueError("OPENAI_API_KEY must be configured.")
         self._settings = settings
         self._mcp_client = mcp_client
-        self._llm = AsyncOpenAI(api_key=settings.openai_api_key)
+        self._llm = AsyncOpenAI(api_key=settings.openai_api_key, base_url="https://openrouter.ai/api/v1")
 
     async def stream_response(
         self,
