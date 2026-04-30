@@ -79,7 +79,7 @@ if (-not $tf) {
 
 Write-Host "Initializing Terraform..." -ForegroundColor Yellow
 $initArgs = @(
-    'init', '-input=false',
+    'init', '-reconfigure', '-input=false', '-force-copy',
     "-backend-config=bucket=meridian-terraform-state-$awsAccountId",
     "-backend-config=key=$Environment/terraform.tfstate",
     "-backend-config=region=$awsRegion",

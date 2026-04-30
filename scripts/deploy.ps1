@@ -94,7 +94,10 @@ $awsRegion = if (-not [string]::IsNullOrWhiteSpace($env:DEFAULT_AWS_REGION)) {
 
 # Splat args so pwsh never treats "--" / continuation lines as operators (fixes GHA / Linux).
 $initArgs = @(
-    'init', '-input=false',
+    'init',
+    '-reconfigure',
+    '-input=false',
+    '-force-copy',
     "-backend-config=bucket=meridian-terraform-state-$awsAccountId",
     "-backend-config=key=$Environment/terraform.tfstate",
     "-backend-config=region=$awsRegion",
@@ -102,6 +105,10 @@ $initArgs = @(
     '-backend-config=encrypt=true'
 )
 & $tf @initArgs
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "terraform init failed ($LASTEXITCODE). Fix backend config or run .\scripts\terraform-init.ps1 -Environment $Environment"
+    exit $LASTEXITCODE
+}
 
 # --- Fix: Workspace Selection Logic ---
 $currentWorkspaces = & $tf @('workspace', 'list')
@@ -122,8 +129,10 @@ if ($Environment -eq "prod") {
 } else {
     & $tf @('apply', "-var=project_name=$ProjectName", "-var=environment=$Environment", '-auto-approve')
 }
-
-# ... after terraform apply ...
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "terraform apply failed ($LASTEXITCODE). State was not updated; fix errors above before fetching outputs."
+    exit $LASTEXITCODE
+}
 
 Write-Host "Fetching outputs..." -ForegroundColor Yellow
 
@@ -133,7 +142,7 @@ $ApiUrl         = & $tf @('output', '-raw', 'api_gateway_url')
 
 # VALIDATION: Stop early if outputs are missing
 if ([string]::IsNullOrWhiteSpace($FrontendBucket)) {
-    Write-Error "CRITICAL: Frontend bucket name is empty! Check if 's3_frontend_bucket' is defined in outputs.tf"
+    Write-Error "Frontend bucket output is empty. Common causes: terraform apply did not succeed, backend not initialized (run .\scripts\terraform-init.ps1 -Environment $Environment), or missing output s3_frontend_bucket in outputs.tf."
     exit 1
 }
 

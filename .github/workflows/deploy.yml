@@ -86,7 +86,7 @@ jobs:
         run: |
           set -e
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          terraform init -input=false \
+          terraform init -reconfigure -input=false -force-copy \
             -backend-config="bucket=meridian-terraform-state-${ACCOUNT_ID}" \
             -backend-config="key=${TF_ENV}/terraform.tfstate" \
             -backend-config="region=${AWS_REGION}" \

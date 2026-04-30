@@ -1,95 +1,131 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$AccountId,
+
     [Parameter(Mandatory = $true)]
     [string]$Region
 )
 
 $ErrorActionPreference = "Stop"
 
-function Test-AwsCommand {
-    param([scriptblock]$Command)
+function Invoke-Aws {
+    param(
+        [string[]]$CliArgs
+    )
+
+    Write-Host "Running: aws $($CliArgs -join ' ')" -ForegroundColor DarkGray
+
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    try {
-        return (& $Command)
-    }
-    finally {
-        $ErrorActionPreference = $prev
-    }
-}
 
+    $output = & aws @CliArgs 2>&1
+    $exitCode = $LASTEXITCODE
+
+    $ErrorActionPreference = $prev
+
+    if ($exitCode -ne 0) {
+        Write-Host "----- AWS ERROR OUTPUT -----" -ForegroundColor Red
+        $output | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+        Write-Host "----------------------------" -ForegroundColor Red
+
+        throw "AWS command failed (exit $exitCode)"
+    }
+
+    return $output
+}
+# ---- Validate Inputs ----
 $AccountId = $AccountId.Trim()
 if ([string]::IsNullOrWhiteSpace($AccountId)) {
-    throw "AccountId is empty after trim; check 'aws sts get-caller-identity'."
+    throw "AccountId is empty. Check AWS credentials."
 }
 
 $Region = $Region.Trim()
+if ([string]::IsNullOrWhiteSpace($Region)) {
+    throw "Region is empty."
+}
+
 $bucketName = "meridian-terraform-state-$AccountId"
 
-$headRc = Test-AwsCommand { aws s3api head-bucket '--bucket' $bucketName 2>$null; $LASTEXITCODE }
-if ($headRc -ne 0) {
-    Write-Host "Creating S3 bucket for Terraform state: $bucketName ($Region) ..." -ForegroundColor Yellow
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        if ($Region -eq "us-east-1") {
-            $createOut = aws @('s3api', 'create-bucket', '--bucket', $bucketName, '--region', $Region) 2>&1
-        }
-        else {
-            $cfg = "LocationConstraint=$Region"
-            $createOut = aws @(
-                's3api', 'create-bucket', '--bucket', $bucketName, '--region', $Region,
-                '--create-bucket-configuration', $cfg
-            ) 2>&1
-        }
-        if ($LASTEXITCODE -ne 0 -and "$createOut" -notmatch 'BucketAlreadyOwnedByYou') {
-            throw "create-bucket failed ($LASTEXITCODE): $createOut"
-        }
+Write-Host "Ensuring Terraform backend bucket: $bucketName ($Region)" -ForegroundColor Cyan
 
-        $verOut = aws @(
-            's3api', 'put-bucket-versioning', '--bucket', $bucketName,
-            '--versioning-configuration', 'Status=Enabled'
-        ) 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "put-bucket-versioning failed ($LASTEXITCODE): $verOut"
-        }
+# ---- Check if bucket exists ----
+aws s3api head-bucket --bucket $bucketName 2>$null
+$bucketExists = ($LASTEXITCODE -eq 0)
 
-        $encJson = '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-        # Linux runners often have no $env:TEMP; Join-Path $null throws "Cannot bind argument to parameter 'Path'".
-        $encFile = Join-Path ([System.IO.Path]::GetTempPath()) ("meridian-tf-s3-enc-{0}.json" -f [Guid]::NewGuid())
-        try {
-            $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-            [System.IO.File]::WriteAllText($encFile, $encJson, $utf8NoBom)
-            $encUri = "file:///" + (($encFile -replace '\\', '/') -replace '^/', '')
-            $encOut = aws @(
-                's3api', 'put-bucket-encryption', '--bucket', $bucketName,
-                '--server-side-encryption-configuration', $encUri
-            ) 2>&1
-            $encRc = $LASTEXITCODE
-            if ($encRc -ne 0) {
-                throw "put-bucket-encryption failed ($encRc): $encOut"
-            }
-        }
-        finally {
-            Remove-Item -LiteralPath $encFile -Force -ErrorAction SilentlyContinue
-        }
+if (-not $bucketExists) {
 
-        $pabCfg = 'BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true'
-        $pabOut = aws @(
-            's3api', 'put-public-access-block', '--bucket', $bucketName,
-            '--public-access-block-configuration', $pabCfg
-        ) 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "put-public-access-block failed ($LASTEXITCODE): $pabOut"
-        }
+    Write-Host "Creating bucket..." -ForegroundColor Yellow
+
+    if ($Region -eq "us-east-1") {
+        Invoke-Aws @(
+            's3api', 'create-bucket',
+            '--bucket', $bucketName,
+            '--region', $Region
+        )
     }
-    finally {
-        $ErrorActionPreference = $prevEap
+    else {
+        Invoke-Aws @(
+            's3api', 'create-bucket',
+            '--bucket', $bucketName,
+            '--region', $Region,
+            '--create-bucket-configuration', "LocationConstraint=$Region"
+        )
     }
+
+    Write-Host "Bucket created." -ForegroundColor Green
 }
 else {
-    Write-Host "Terraform state bucket already exists: $bucketName" -ForegroundColor DarkGray
+    Write-Host "Bucket already exists." -ForegroundColor DarkGray
 }
 
-# Terraform S3 backend with use_lockfile stores locks in the bucket; no DynamoDB table required.
+# ---- Enable Versioning ----
+Write-Host "Enabling versioning..." -ForegroundColor Yellow
+
+Invoke-Aws @(
+    's3api', 'put-bucket-versioning',
+    '--bucket', $bucketName,
+    '--versioning-configuration', 'Status=Enabled'
+)
+
+# ---- Configure Encryption (FILE-BASED — SAFE) ----
+Write-Host "Applying server-side encryption..." -ForegroundColor Yellow
+
+$encFile = Join-Path $env:TEMP "s3-encryption.json"
+
+$encJson = @{
+    Rules = @(
+        @{
+            ApplyServerSideEncryptionByDefault = @{
+                SSEAlgorithm = "AES256"
+            }
+        }
+    )
+} | ConvertTo-Json -Depth 5
+
+[System.IO.File]::WriteAllText($encFile, $encJson)
+
+# Debug (optional)
+Write-Host "Encryption JSON:" -ForegroundColor Gray
+Get-Content $encFile
+
+Invoke-Aws @(
+    's3api', 'put-bucket-encryption',
+    '--bucket', $bucketName,
+    '--server-side-encryption-configuration', "file://$encFile"
+)
+
+# ---- Block Public Access ----
+Write-Host "Blocking public access..." -ForegroundColor Yellow
+
+Invoke-Aws @(
+    's3api', 'put-public-access-block',
+    '--bucket', $bucketName,
+    '--public-access-block-configuration',
+    'BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true'
+)
+
+Write-Host "Terraform backend bucket is ready." -ForegroundColor Green
+
+# NOTE:
+# Terraform S3 backend with use_lockfile stores locks in the bucket
+# DynamoDB is NOT required.
