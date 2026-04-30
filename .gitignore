@@ -32,7 +32,6 @@ wheels/
 *.egg-info
 
 
-
 # IDE
 .vscode/
 .idea/
