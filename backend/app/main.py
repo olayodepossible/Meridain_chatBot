@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from app.config import Settings, get_settings
 from app.logging_config import configure_logging, logging_boundary_middleware
@@ -17,7 +17,16 @@ from app.schemas import (
     UserContext,
 )
 
+import os
+
 logger = logging.getLogger("api_gateway")
+
+
+def _cors_allow_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", "").strip()
+    if not raw:
+        return ["http://localhost:3000"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
 
 
 @lru_cache
@@ -41,13 +50,23 @@ def create_app() -> FastAPI:
         description="API Gateway and AI Orchestrator for MCP-only backend tool execution.",
     )
     app.middleware("http")(logging_boundary_middleware)
+    # Explicit allow_origins from CORS_ORIGINS (Terraform sets the CloudFront HTTPS URL).
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
+        allow_origins=_cors_allow_origins(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS", "HEAD"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
+
+    @app.options("/api/chat")
+    async def _preflight_chat() -> Response:
+        return Response(status_code=204)
+
+    @app.options("/api/tools")
+    async def _preflight_tools() -> Response:
+        return Response(status_code=204)
 
     @app.get("/health")
     async def health() -> dict[str, str]:

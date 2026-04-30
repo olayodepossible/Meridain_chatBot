@@ -154,14 +154,7 @@ resource "aws_apigatewayv2_api" "main" {
   name          = "${local.name_prefix}-api-gateway"
   protocol_type = "HTTP"
   tags          = local.common_tags
-
-  cors_configuration {
-    allow_credentials = false
-    allow_headers     = ["*"]
-    allow_methods     = ["GET", "POST", "OPTIONS"]
-    allow_origins     = ["*"]
-    max_age           = 300
-  }
+  # CORS headers come from Lambda (FastAPI). API-level CORS here can conflict with proxy OPTIONS.
 }
 
 resource "aws_apigatewayv2_stage" "default" {
