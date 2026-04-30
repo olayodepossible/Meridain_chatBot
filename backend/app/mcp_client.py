@@ -1,5 +1,6 @@
 import time
 from typing import Any
+import asyncio
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -81,7 +82,20 @@ class MCPToolClient:
         async with self._session(user_context) as (read_stream, write_stream, _):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
-                result = await session.call_tool(tool_name, arguments)
+                for attempt in range(2):
+                    try:
+                        result = await asyncio.wait_for(
+                            session.call_tool(tool_name, arguments),
+                            timeout=10,
+                        )
+                        break
+                    except asyncio.TimeoutError:
+                        if attempt == 1:
+                            return {
+                                "error": True,
+                                "tool_name": tool_name,
+                                "content": "MCP tool timeout",
+                            }
 
         if getattr(result, "isError", False):
             return {

@@ -84,7 +84,12 @@ def create_app() -> FastAPI:
                     user,
                     payload.conversation_id,
                 ):
+                    if await request.is_disconnected():
+                        logger.info("Client disconnected early")
+                        break
+
                     yield _sse(event)
+
             except Exception as exc:
                 logger.exception(
                     "Chat orchestration failed",
@@ -97,7 +102,6 @@ def create_app() -> FastAPI:
                     },
                 )
                 yield _sse({"type": "error", "message": "The assistant could not complete the request."})
-
         return StreamingResponse(
             event_stream(),
             media_type="text/event-stream",
@@ -112,7 +116,8 @@ def create_app() -> FastAPI:
 
 def _sse(event: dict[str, Any]) -> str:
     event_type = event.get("type", "message")
-    return f"event: {event_type}\ndata: {json.dumps(event, default=str)}\n\n"
+    data = json.dumps(event, default=str).replace("\n", "\\n")
+    return f"event: {event_type}\ndata: {data}\n\n"
 
 
 app = create_app()
