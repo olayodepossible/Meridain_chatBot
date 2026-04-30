@@ -53,49 +53,22 @@ class AIOrchestrator:
                 completion_args["tools"] = [self._to_openai_tool(tool) for tool in tools]
                 completion_args["tool_choice"] = "auto"
 
-                stream = await self._llm.chat.completions.create(
-                    model=self._settings.openai_model,
-                    messages=messages,
-                    tools=[self._to_openai_tool(tool) for tool in tools] if tools else None,
-                    tool_choice="auto" if tools else None,
-                    stream=True,
-                )
-                collected_tool_calls: dict[int, dict[str, Any]] = {}
-                final_text_chunks: list[str] = []
-                async for chunk in stream:
-                    delta = chunk.choices[0].delta
+            response = await self._llm.chat.completions.create(**completion_args)
+            assistant_message = response.choices[0].message
+            tool_calls = assistant_message.tool_calls or []
 
-                    if delta.content:
-                        final_text_chunks.append(delta.content)
-                        yield {"type": "message.delta", "content": delta.content}
-
-                    if delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            idx = tc.index
-
-                            if idx not in collected_tool_calls:
-                                collected_tool_calls[idx] = {
-                                    "id": tc.id,
-                                    "name": tc.function.name if tc.function else "",
-                                    "arguments": "",
-                                }
-
-                            if tc.function and tc.function.arguments:
-                                collected_tool_calls[idx]["arguments"] += tc.function.arguments
-
-            
-
-            if not collected_tool_calls:
+            if not tool_calls:
+                content = assistant_message.content or ""
+                if content:
+                    yield {"type": "message.delta", "content": content}
                 yield {"type": "message.done"}
                 return
-
-            tool_calls = list(collected_tool_calls.values())
 
             messages.append(
                 {
                     "role": "assistant",
                     "content": assistant_message.content,
-                    "tool_calls": [tool_call.model_dump(exclude_none=True) for tool_call in tool_calls],
+                    "tool_calls": [tc.model_dump(exclude_none=True) for tc in tool_calls],
                 }
             )
 
@@ -115,20 +88,9 @@ class AIOrchestrator:
                             "duration_ms": 0,
                         },
                     )
-                    yield {
-                        "type": "tool.started",
-                        "tool_name": tool_name,
-                        "arguments": arguments,
-                        "step": step + 1,
-                    }
-
+                    yield {"type": "tool.started", "tool_name": tool_name, "step": step + 1}
                     result = await self._mcp_client.execute_tool(tool_name, arguments, user_context)
-                    yield {
-                        "type": "tool.completed",
-                        "tool_name": tool_name,
-                        "result_preview": str(result)[:300],
-                        "step": step + 1,
-                    }
+                    yield {"type": "tool.completed", "tool_name": tool_name, "step": step + 1}
 
                 messages.append(
                     {
@@ -142,24 +104,24 @@ class AIOrchestrator:
         messages.append(
             {
                 "role": "system",
-                "content": "The maximum tool execution depth was reached. Summarize what is known and ask for the minimum next clarification if needed.",
+                "content": (
+                    "The maximum tool execution depth was reached. Summarize what is known "
+                    "and ask for the minimum next clarification if needed."
+                ),
             }
         )
         final_response = await self._llm.chat.completions.create(
             model=self._settings.openai_model,
             messages=messages,
-            tools=[self._to_openai_tool(tool) for tool in tools] if tools else None,
-            tool_choice="auto" if tools else None,
-            stream=True,
         )
-        yield {"type": "message.delta", "content": final_response.choices[0].message.content or ""}
+        final_content = final_response.choices[0].message.content or ""
+        yield {"type": "message.delta", "content": final_content}
         yield {"type": "message.done"}
 
     @staticmethod
     def _parse_tool_arguments(arguments: str | None) -> dict[str, Any]:
         if not arguments:
             return {}
-
         try:
             parsed = json.loads(arguments)
             if not isinstance(parsed, dict):

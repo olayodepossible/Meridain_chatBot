@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (gitignored). Never commit real API keys.
+# OpenRouter: use repository secret OPENROUTER_API_KEY in GitHub Actions (see deploy.yml), or .env /
+# TF_VAR_openrouter_api_key locally. Do not set openrouter_api_key here if you rely on those—Terraform
+# loads this file with higher precedence than TF_VAR_*.
+
+project_name             = "meridian-chatbot"
+environment              = "dev"
+bedrock_model_id         = "amazon.nova-micro-v1:0"
+lambda_timeout           = 60
+api_throttle_burst_limit = 10
+api_throttle_rate_limit  = 5
+use_custom_domain        = false
+root_domain              = ""
