@@ -136,7 +136,7 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      CORS_ORIGINS     = var.use_custom_domain ? "https://${var.root_domain},https://www.${var.root_domain}" : "https://${aws_cloudfront_distribution.main.domain_name}"
+      CORS_ORIGINS     = "*"
       S3_BUCKET        = aws_s3_bucket.memory.id
       USE_S3           = "true"
       BEDROCK_MODEL_ID = var.bedrock_model_id
@@ -153,8 +153,16 @@ resource "aws_lambda_function" "api" {
 resource "aws_apigatewayv2_api" "main" {
   name          = "${local.name_prefix}-api-gateway"
   protocol_type = "HTTP"
-  tags          = local.common_tags
-  # CORS headers come from Lambda (FastAPI). API-level CORS here can conflict with proxy OPTIONS.
+
+  cors_configuration {
+    allow_origins = ["*"] # or your CloudFront domain
+    allow_methods = ["GET", "POST", "OPTIONS", "HEAD"]
+    allow_headers = ["*"]
+    expose_headers = ["*"]
+    max_age = 3600
+  }
+
+  tags = local.common_tags
 }
 
 resource "aws_apigatewayv2_stage" "default" {
@@ -188,11 +196,6 @@ resource "aws_apigatewayv2_route" "post_api_chat" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_route" "options_api_chat" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "OPTIONS /api/chat"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-}
 
 resource "aws_apigatewayv2_route" "get_api_tools" {
   api_id    = aws_apigatewayv2_api.main.id

@@ -48,6 +48,11 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version="0.1.0",
         description="API Gateway and AI Orchestrator for MCP-only backend tool execution.",
+        headers={
+            "cache-control": "no-cache",
+            "x-accel-buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+        }
     )
     app.middleware("http")(logging_boundary_middleware)
     # Explicit allow_origins from CORS_ORIGINS (Terraform sets the CloudFront HTTPS URL).
@@ -62,11 +67,25 @@ def create_app() -> FastAPI:
 
     @app.options("/api/chat")
     async def _preflight_chat() -> Response:
-        return Response(status_code=204)
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,POST,OPTIONS,HEAD",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
 
     @app.options("/api/tools")
     async def _preflight_tools() -> Response:
-        return Response(status_code=204)
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,POST,OPTIONS,HEAD",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
