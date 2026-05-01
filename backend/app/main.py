@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
-from app.config import Settings, get_settings
+from app.config import  get_settings
 from app.logging_config import configure_logging, logging_boundary_middleware
 from app.mcp_client import MCPToolClient
 from app.orchestrator import AIOrchestrator
@@ -96,9 +96,14 @@ def create_app() -> FastAPI:
         user: Annotated[UserContext, Depends(enforce_rate_limit)],
     ) -> dict[str, Any]:
         tools = await get_mcp_client().list_tools()
+        for tool in tools:
+            logger.info("Tool schema", extra={
+                "name": tool.name,
+                "schema": tool.input_schema
+            })
         return {
             "user_id": user.user_id,
-            "tools": [tool.model_dump(mode="json") for tool in tools],
+            "tools": [tool.model_dump(mode="json")],
         }
 
     @app.post("/api/chat")
@@ -139,7 +144,10 @@ def create_app() -> FastAPI:
                         "duration_ms": 0,
                     },
                 )
-                yield _sse({"type": "error", "message": "The assistant could not complete the request."})
+                yield _sse({
+    "type": "error",
+    "message": str(exc)[:300]  # TEMP for debugging
+})
         return StreamingResponse(
             event_stream(),
             media_type="text/event-stream",

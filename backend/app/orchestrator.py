@@ -25,6 +25,9 @@ class AIOrchestrator:
         self._mcp_client = mcp_client
         self._memory = ConversationMemory(settings)
         self._llm = AsyncOpenAI(api_key=settings.openrouter_api_key, base_url="https://openrouter.ai/api/v1")
+        logger.info("Chat request started", extra={
+            "openrouter_api_key": settings.openrouter_api_key,
+        })
 
     async def stream_response(
         self,
@@ -39,6 +42,7 @@ class AIOrchestrator:
             "request_id": request_id,
             "user_query": user_query,
             "conversation_id": conversation_id,
+            "openrouter_api_key": self._settings.openrouter_api_key,
         })
         tools = await self._mcp_client.list_tools()
         logger.info("MCP tools discovered", extra={
@@ -195,18 +199,11 @@ class AIOrchestrator:
         return f"""
 You are the AI Orchestrator Service for a commerce support assistant.
 
-Security and architecture rules:
-- You may answer general questions directly.
-- For product availability lookup, order placement, order history retrieval, and customer-authenticated support actions, you must use MCP tools.
-- Never claim to access databases, internal services, product services, order services, or customer systems directly.
-- Never ask the user for raw JWTs, API keys, passwords, or secrets.
-- Use the provided frontend-authenticated user context for customer identity.
-- If a required backend action is not represented by an MCP tool, explain that the tool layer does not expose that action.
-
-Reasoning rules:
-- Choose the smallest tool call that can answer the request.
-- For multi-step tasks, call tools sequentially and use previous tool results to decide the next tool.
-- After tool execution, format a concise, user-friendly final response.
+- You must use MCP tools for backend actions
+- Never fabricate data
+- Never access systems directly
+- If a tool requires authentication and it is not verified, do not call the tool.
+- Instead, ask the user for required credentials.
 
 Available MCP tools:
 {tool_list or "- No tools are currently exposed by the MCP server."}
