@@ -130,18 +130,18 @@ class ConversationMemory:
         )
 
     
-async def overwrite(
-    self,
-    conversation_id: str,
-    messages: list[dict[str, Any]],
-) -> None:
-    key = _conversation_object_name(conversation_id)
-    messages = _normalize_messages(messages)
+    async def overwrite(
+        self,
+        conversation_id: str,
+        messages: list[dict[str, Any]],
+    ) -> None:
+        key = _conversation_object_name(conversation_id)
+        messages = _normalize_messages(messages)
 
-    body = json.dumps({"version": 1, "messages": messages}, ensure_ascii=False)
+        body = json.dumps({"version": 1, "messages": messages}, ensure_ascii=False)
 
-    if self._use_s3():
-        await asyncio.to_thread(self._s3_put_body, key, body)
-    else:
-        path = self._local_path(key)
-        await asyncio.to_thread(self._write_file, path, body)
+        if self._use_s3():
+            await asyncio.to_thread(self._s3_put_body, key, body)
+        else:
+            path = self._local_path(key)
+            await asyncio.to_thread(self._write_file, path, body)

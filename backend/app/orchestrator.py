@@ -25,9 +25,7 @@ class AIOrchestrator:
         self._mcp_client = mcp_client
         self._memory = ConversationMemory(settings)
         self._llm = AsyncOpenAI(api_key=settings.openrouter_api_key, base_url="https://openrouter.ai/api/v1")
-        logger.info("Chat request started", extra={
-            "openrouter_api_key": settings.openrouter_api_key,
-        })
+       
 
     async def stream_response(
         self,
@@ -42,7 +40,6 @@ class AIOrchestrator:
             "request_id": request_id,
             "user_query": user_query,
             "conversation_id": conversation_id,
-            "openrouter_api_key": self._settings.openrouter_api_key,
         })
         tools = await self._mcp_client.list_tools()
         logger.info("MCP tools discovered", extra={
@@ -240,23 +237,23 @@ Available MCP tools:
         except Exception as e:
             logger.warning("Failed to persist conversation turn", extra={"error": str(e)})
 
-async def _persist_full_conversation(
-    self,
-    conversation_id: str | None,
-    messages: list[dict[str, Any]],
-) -> None:
-    if not conversation_id:
-        return
+    async def _persist_full_conversation(
+        self,
+        conversation_id: str | None,
+        messages: list[dict[str, Any]],
+    ) -> None:
+        if not conversation_id:
+            return
 
-    try:
-        # Only store user + assistant (filter out tool noise)
-        cleaned = [
-            {"role": m["role"], "content": m.get("content", "")}
-            for m in messages
-            if m["role"] in ("user", "assistant") and m.get("content")
-        ]
+        try:
+            # Only store user + assistant (filter out tool noise)
+            cleaned = [
+                {"role": m["role"], "content": m.get("content", "")}
+                for m in messages
+                if m["role"] in ("user", "assistant") and m.get("content")
+            ]
 
-        await self._memory.overwrite(conversation_id, cleaned)
+            await self._memory.overwrite(conversation_id, cleaned)
 
-    except Exception as e:
-        logger.warning("Failed to persist full conversation", extra={"error": str(e)})
+        except Exception as e:
+            logger.warning("Failed to persist full conversation", extra={"error": str(e)})
