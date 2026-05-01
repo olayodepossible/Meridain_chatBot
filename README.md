@@ -294,7 +294,7 @@ app/config.py
 ## 1. Install dependencies
 
 ```
-pip install -r requirements.txt
+uv sync
 ```
 
 ---
@@ -407,6 +407,13 @@ app/
 
 ---
 
+# Observability
+
+Request flow and where logs land in AWS (structured JSON on Lambda stdout → CloudWatch Logs):
+
+![Observability: client through API Gateway, Lambda, to CloudWatch](images/img-1.png)
+
+---
 # 🧠 Summary
 
 Meridian ChatBot is a **secure, scalable AI agent system** that:
@@ -417,4 +424,7 @@ Meridian ChatBot is a **secure, scalable AI agent system** that:
 * Streams responses for real-time UX
 
 ---
+
+
+
 
