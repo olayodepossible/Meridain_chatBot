@@ -245,26 +245,6 @@ AI → SSE → Frontend (real-time updates)
 # 🔁 Streaming Architecture
 
 * Uses **Server-Sent Events (SSE)**
-* Supports:
-
-  * Partial responses (`message.delta`)
-  * Tool execution events
-  * Completion signals
-
-Example events:
-
-```json
-event: message.delta
-data: { "content": "Here are your..." }
-
-event: tool.started
-data: { "tool_name": "getOrderHistory" }
-
-event: tool.completed
-data: { "tool_name": "getOrderHistory" }
-
-event: message.done
-```
 
 ---
 
@@ -303,7 +283,7 @@ uv sync
 
 ```
 OPENAI_API_KEY=your_key
-MCP_SERVER_URL=https://order-mcp-74afyau24q-uc.a.run.app/mcp
+MCP_SERVER_URL=url here
 ```
 
 ---
@@ -311,7 +291,7 @@ MCP_SERVER_URL=https://order-mcp-74afyau24q-uc.a.run.app/mcp
 ## 3. Run server
 
 ```
-uvicorn app.main:app --reload
+uv run app.run.py 
 ```
 
 ---
@@ -347,48 +327,15 @@ app/
 
 ---
 
-# ⚠️ Known Limitations (MVP)
-
-### 1. In-Memory Rate Limiting
-
-* Not suitable for multi-instance deployments
-* Replace with Redis or API Gateway throttling
-
----
-
-### 2. No Persistent Conversation Memory
-
-* Each request is stateless
-* Future improvement: add Redis / vector DB
-
----
-
-### 3. MCP Dependency
-
-* System depends on MCP availability
-* Add circuit breaker in production
-
----
 
 # 🚀 Future Improvements
 
 * Redis-based distributed rate limiting
-* Conversation memory (context persistence)
 * Circuit breaker for MCP failures
-* Observability (tracing, metrics)
-* Multi-agent architecture (planner + executor split)
+* Real Time User feedback metric
 
 ---
 
-# 💡 Design Decisions
-
-### Why MCP?
-
-* Enforces strict separation of concerns
-* Prevents unsafe direct data access
-* Enables controlled tool execution
-
----
 
 ### Why Streaming?
 
