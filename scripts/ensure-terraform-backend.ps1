@@ -33,6 +33,21 @@ function Invoke-Aws {
 
     return $output
 }
+
+function Get-AwsCliFileUri {
+    param([Parameter(Mandatory = $true)][string]$FilePath)
+    $resolved = [System.IO.Path]::GetFullPath($FilePath)
+    $norm = $resolved -replace '\\', '/'
+    # Windows: AWS CLI expects file://C:/path (two slashes after "file:"). .NET AbsoluteUri uses file:///C:/... which breaks.
+    if ($norm -match '^[A-Za-z]:/') {
+        return "file://$norm"
+    }
+    if ($norm.StartsWith('/')) {
+        return "file://$norm"
+    }
+    throw "Cannot build AWS CLI file URI for path: $FilePath"
+}
+
 # ---- Validate Inputs ----
 $AccountId = $AccountId.Trim()
 if ([string]::IsNullOrWhiteSpace($AccountId)) {
@@ -87,16 +102,24 @@ Invoke-Aws @(
     '--versioning-configuration', 'Status=Enabled'
 )
 
-# ---- Configure encryption (inline JSON: Linux runners often have no $env:TEMP; file:// is fragile) ----
+# ---- Configure encryption (temp file + file URI: inline JSON is mangled by PowerShell when splatting to aws) ----
 Write-Host "Applying server-side encryption..." -ForegroundColor Yellow
 
 $encJson = '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-
-Invoke-Aws @(
-    's3api', 'put-bucket-encryption',
-    '--bucket', $bucketName,
-    '--server-side-encryption-configuration', $encJson
-)
+$encFile = Join-Path ([System.IO.Path]::GetTempPath()) ("meridian-tf-s3-enc-{0}.json" -f [Guid]::NewGuid())
+try {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($encFile, $encJson, $utf8NoBom)
+    $encUri = Get-AwsCliFileUri -FilePath $encFile
+    Invoke-Aws @(
+        's3api', 'put-bucket-encryption',
+        '--bucket', $bucketName,
+        '--server-side-encryption-configuration', $encUri
+    )
+}
+finally {
+    Remove-Item -LiteralPath $encFile -Force -ErrorAction SilentlyContinue
+}
 
 # ---- Block Public Access ----
 Write-Host "Blocking public access..." -ForegroundColor Yellow

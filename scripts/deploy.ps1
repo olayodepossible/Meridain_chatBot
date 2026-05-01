@@ -168,11 +168,11 @@ if ([string]::IsNullOrWhiteSpace($FrontendBucket)) {
 Write-Host "Deploying to bucket: $FrontendBucket" -ForegroundColor Gray
 try { $CustomUrl = & $tf @('output', '-raw', 'custom_domain_url') } catch { $CustomUrl = "" }
 
-# 3. Build + deploy frontend (next.config uses output: "export" → frontend/out)
+# 3. Build + deploy frontend (next.config uses output: "export" -> frontend/out)
 Set-Location ..\frontend
 
 if ($env:GITHUB_ACTIONS -eq "true" -and [string]::IsNullOrWhiteSpace($env:NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)) {
-    Write-Error "Add repository secret NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (Clerk publishable key) — required for static Next.js build in CI."
+    Write-Error 'Add repository secret NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (Clerk publishable key) - required for static Next.js build in CI.'
     exit 1
 }
 
