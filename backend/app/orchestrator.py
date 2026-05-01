@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -18,12 +19,12 @@ class AIOrchestrator:
     """Core brain: plans with the LLM and executes actions only through MCP tools."""
 
     def __init__(self, settings: Settings, mcp_client: MCPToolClient) -> None:
-        if not settings.openai_api_key:
-            raise ValueError("OPENAI_API_KEY must be configured.")
+        if not settings.openrouter_api_key:
+            raise ValueError("OPENROUTER_API_KEY must be configured.")
         self._settings = settings
         self._mcp_client = mcp_client
         self._memory = ConversationMemory(settings)
-        self._llm = AsyncOpenAI(api_key=settings.openai_api_key, base_url="https://openrouter.ai/api/v1")
+        self._llm = AsyncOpenAI(api_key=settings.openrouter_api_key, base_url="https://openrouter.ai/api/v1")
 
     async def stream_response(
         self,
@@ -31,7 +32,20 @@ class AIOrchestrator:
         user_context: UserContext,
         conversation_id: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
+
+        request_id = str(uuid.uuid4())
+
+        logger.info("Chat request started", extra={
+            "request_id": request_id,
+            "user_query": user_query,
+            "conversation_id": conversation_id,
+        })
         tools = await self._mcp_client.list_tools()
+        logger.info("MCP tools discovered", extra={
+            "request_id": request_id,
+            "tool_count": len(tools),
+            "tools": [t.name for t in tools],
+        })
         tool_names = {tool.name for tool in tools}
         # STEP 1: Fetch conversation history (from memory store / S3 / DB)
         history = await self._get_conversation_history(conversation_id)
@@ -92,16 +106,11 @@ class AIOrchestrator:
                     result = {"error": True, "message": f"Unknown MCP tool: {tool_name}"}
                 else:
                     arguments = self._parse_tool_arguments(tool_call.function.arguments)
-                    logger.info(
-                        "Executing MCP tool",
-                        extra={
-                            "request_id": None,
-                            "path": "mcp_tool",
-                            "method": tool_name,
-                            "status_code": 0,
-                            "duration_ms": 0,
-                        },
-                    )
+                    logger.info("Executing MCP tool", extra={
+                        "request_id": request_id,
+                        "tool_name": tool_name,
+                        "arguments": arguments,
+                    })
                     yield {"type": "tool.started", "tool_name": tool_name, "step": step + 1}
                     result = await self._mcp_client.execute_tool(tool_name, arguments, user_context)
                     yield {"type": "tool.completed", "tool_name": tool_name, "step": step + 1}
@@ -114,6 +123,11 @@ class AIOrchestrator:
                         "content": json.dumps(result, default=str),
                     }
                 )
+                logger.info("MCP tool result", extra={
+                    "request_id": request_id,
+                    "tool_name": tool_name,
+                    "result": str(result)[:500],  # avoid huge logs
+                })
 
         messages.append(
             {
@@ -124,6 +138,11 @@ class AIOrchestrator:
                 ),
             }
         )
+        logger.info("Calling LLM", extra={
+            "request_id": request_id,
+            "model": self._settings.openai_model,
+            "messages_count": len(messages),
+        })
         final_response = await self._llm.chat.completions.create(
             model=self._settings.openai_model,
             messages=messages,
@@ -197,6 +216,9 @@ Available MCP tools:
         self, conversation_id: str | None
     ) -> list[dict[str, Any]]:
         """Load prior user/assistant turns (S3 when USE_S3+S3_BUCKET, else local `.memory`)."""
+        logger.info("Loading conversation history", extra={
+            "conversation_id": conversation_id,
+        })
         if not conversation_id:
             return []
         try:
@@ -211,6 +233,9 @@ Available MCP tools:
         user_query: str,
         assistant_text: str,
     ) -> None:
+        logger.info("Persisting conversation", extra={
+            "conversation_id": conversation_id,
+        })
         if not conversation_id or not assistant_text.strip():
             return
         try:

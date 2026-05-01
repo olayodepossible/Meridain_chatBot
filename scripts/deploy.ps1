@@ -40,10 +40,10 @@ Write-Host "Deploying $ProjectName to $Environment ..." -ForegroundColor Green
 $ProjectRoot = Split-Path -Parent $ScriptRoot
 Set-Location $ProjectRoot
 
-# Load .env variables into the Process environment
-$dotenvPath = Join-Path $ProjectRoot ".env"
-if (Test-Path $dotenvPath) {
-    Get-Content $dotenvPath | ForEach-Object {
+function Merge-DotEnvIntoProcess {
+    param([string]$DotEnvPath)
+    if (-not (Test-Path -LiteralPath $DotEnvPath)) { return }
+    Get-Content -LiteralPath $DotEnvPath | ForEach-Object {
         $line = $_.Trim()
         if ($line -eq "" -or $line.StartsWith("#")) { return }
         $eq = $line.IndexOf("=")
@@ -56,6 +56,10 @@ if (Test-Path $dotenvPath) {
         if ($name) { [Environment]::SetEnvironmentVariable($name, $val, "Process") }
     }
 }
+
+# Repo root first, then backend/.env (overrides) so OPENROUTER_API_KEY and Clerk/MCP vars match local dev layout.
+Merge-DotEnvIntoProcess (Join-Path $ProjectRoot ".env")
+Merge-DotEnvIntoProcess (Join-Path $ProjectRoot "backend\.env")
 
 # --- Fix: Robust OpenRouter Key Bridging ---
 # Ensure TF_VAR_openrouter_api_key is set only if a non-empty key exists
@@ -149,7 +153,10 @@ if ($Environment -eq "prod") {
     & $tf @('apply', "-var=project_name=$ProjectName", "-var=environment=$Environment", '-auto-approve')
 }
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "terraform apply failed ($LASTEXITCODE). State was not updated; fix errors above before fetching outputs."
+    Write-Error @"
+terraform apply failed ($LASTEXITCODE). State was not updated; fix errors above before fetching outputs.
+If the log shows 'no such host' for iam.amazonaws.com (or other *.amazonaws.com), that is DNS or network: confirm internet, VPN, corporate DNS, then retry (e.g. nslookup iam.amazonaws.com).
+"@
     exit $LASTEXITCODE
 }
 

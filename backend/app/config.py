@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     app_name: str = "tool-augmented-ai-backend"
     environment: str = "development"
     log_level: str = "INFO"
-
-    openai_api_key:  str | None = os.getenv("OPENROUTER_API_KEY")
+    
+    openrouter_api_key:  str | None = os.getenv("OPENROUTER_API_KEY")
     openai_model: str = "gpt-4.1-mini"
     max_tool_steps: int = 6
 

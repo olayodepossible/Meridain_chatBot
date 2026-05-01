@@ -20,6 +20,14 @@ dependencies = [
 [project.scripts]
 backend = "app.main:app"
 
+[tool.pyright]
+# Pylance/Pyright: use uv venv so imports (e.g. openai) resolve when workspace root is above `backend/`.
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+include = ["app"]
+exclude = [".venv", "**/__pycache__"]
+
 [tool.uv]
 package = false
 
