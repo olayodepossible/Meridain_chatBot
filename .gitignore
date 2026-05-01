@@ -55,6 +55,7 @@ lambda-package/
 
 # Memory storage (contains conversation history)
 memory/
+.memory/
 
 # Environment files
 .env

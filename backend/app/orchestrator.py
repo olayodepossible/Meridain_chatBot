@@ -6,8 +6,10 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.config import Settings
+from app.conversation_memory import ConversationMemory
 from app.mcp_client import MCPToolClient
 from app.schemas import MCPToolDefinition, UserContext
+from app.context import prompt
 
 logger = logging.getLogger("ai_orchestrator")
 
@@ -20,6 +22,7 @@ class AIOrchestrator:
             raise ValueError("OPENAI_API_KEY must be configured.")
         self._settings = settings
         self._mcp_client = mcp_client
+        self._memory = ConversationMemory(settings)
         self._llm = AsyncOpenAI(api_key=settings.openai_api_key, base_url="https://openrouter.ai/api/v1")
 
     async def stream_response(
@@ -30,17 +33,27 @@ class AIOrchestrator:
     ) -> AsyncIterator[dict[str, Any]]:
         tools = await self._mcp_client.list_tools()
         tool_names = {tool.name for tool in tools}
+        # STEP 1: Fetch conversation history (from memory store / S3 / DB)
+        history = await self._get_conversation_history(conversation_id)
+
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self._system_prompt(tools)},
             {
-                "role": "user",
-                "content": (
-                    f"User context: {self._safe_user_context(user_context)}\n"
-                    f"Conversation id: {conversation_id or 'new'}\n\n"
-                    f"User query: {user_query}"
-                ),
+                "role": "system",
+                "content": prompt() + "\n\n" + self._system_prompt(tools),
             },
         ]
+
+        # STEP 2: Inject past conversation (VERY IMPORTANT)
+        for msg in history:
+            messages.append(msg)
+
+        # STEP 3: Add current user input LAST
+        messages.append(
+            {
+                "role": "user",
+                "content": user_query
+            }
+        )
 
         yield {"type": "status", "message": "orchestrator_started"}
 
@@ -62,6 +75,7 @@ class AIOrchestrator:
                 if content:
                     yield {"type": "message.delta", "content": content}
                 yield {"type": "message.done"}
+                await self._persist_full_conversation(conversation_id, messages)
                 return
 
             messages.append(
@@ -117,6 +131,7 @@ class AIOrchestrator:
         final_content = final_response.choices[0].message.content or ""
         yield {"type": "message.delta", "content": final_content}
         yield {"type": "message.done"}
+        await self._persist_conversation_turn(conversation_id, user_query, final_content)
 
     @staticmethod
     def _parse_tool_arguments(arguments: str | None) -> dict[str, Any]:
@@ -177,3 +192,49 @@ Reasoning rules:
 Available MCP tools:
 {tool_list or "- No tools are currently exposed by the MCP server."}
 """.strip()
+
+    async def _get_conversation_history(
+        self, conversation_id: str | None
+    ) -> list[dict[str, Any]]:
+        """Load prior user/assistant turns (S3 when USE_S3+S3_BUCKET, else local `.memory`)."""
+        if not conversation_id:
+            return []
+        try:
+            return await self._memory.load(conversation_id)
+        except Exception as e:
+            logger.warning("Failed to load conversation history", extra={"error": str(e)})
+            return []
+
+    async def _persist_conversation_turn(
+        self,
+        conversation_id: str | None,
+        user_query: str,
+        assistant_text: str,
+    ) -> None:
+        if not conversation_id or not assistant_text.strip():
+            return
+        try:
+            await self._memory.append(conversation_id, user_query, assistant_text)
+        except Exception as e:
+            logger.warning("Failed to persist conversation turn", extra={"error": str(e)})
+
+async def _persist_full_conversation(
+    self,
+    conversation_id: str | None,
+    messages: list[dict[str, Any]],
+) -> None:
+    if not conversation_id:
+        return
+
+    try:
+        # Only store user + assistant (filter out tool noise)
+        cleaned = [
+            {"role": m["role"], "content": m.get("content", "")}
+            for m in messages
+            if m["role"] in ("user", "assistant") and m.get("content")
+        ]
+
+        await self._memory.overwrite(conversation_id, cleaned)
+
+    except Exception as e:
+        logger.warning("Failed to persist full conversation", extra={"error": str(e)})
