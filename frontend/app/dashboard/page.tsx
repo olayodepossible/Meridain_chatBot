@@ -1,21 +1,22 @@
 'use client';
 
-import { UserButton, useUser } from '@clerk/clerk-react';
+import { UserButton, useSession, useUser } from '@clerk/clerk-react';
 import ChatBot from '@/components/chatBot';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function Dashboard() {
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn, isLoaded: userLoaded } = useUser();
+  const { isLoaded: sessionLoaded } = useSession();
   const router = useRouter();
+  const clerkReady = userLoaded && sessionLoaded;
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      router.replace('/');
-    }
-  }, [isLoaded, isSignedIn, router]);
+    if (!clerkReady || isSignedIn) return;
+    router.replace('/');
+  }, [clerkReady, isSignedIn, router]);
 
-  if (!isLoaded || !isSignedIn) {
+  if (!clerkReady || !isSignedIn) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-gray-100 text-gray-600">
         Loading…

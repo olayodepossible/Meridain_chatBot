@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthenticateWithRedirectCallback, ClerkProvider } from '@clerk/clerk-react';
+import { ClerkProvider } from '@clerk/clerk-react';
 import { Suspense } from 'react';
 
 import { ClerkHandshakeCleanup } from '@/components/ClerkHandshakeCleanup';
@@ -26,7 +26,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
       afterSignInUrl={signInDest}
       afterSignUpUrl={signUpDest}
     >
-      <AuthenticateWithRedirectCallback />
       <Suspense fallback={null}>
         <ClerkHandshakeCleanup />
       </Suspense>
