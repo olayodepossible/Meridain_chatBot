@@ -361,6 +361,9 @@ Request flow and where logs land in AWS (structured JSON on Lambda stdout → Cl
 ![Observability: client through API Gateway, Lambda, to CloudWatch](images/img-1.png)
 
 ---
+# Video
+Link: https://drive.google.com/file/d/13ewurxbRoykcnqymevRN5v46XF2mCYwK/edit
+---
 # 🧠 Summary
 
 Meridian ChatBot is a **secure, scalable AI agent system** that:
