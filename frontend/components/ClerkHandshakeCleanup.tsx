@@ -4,10 +4,6 @@ import { useAuth } from '@clerk/clerk-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
-/**
- * Static export on CloudFront can leave `?__clerk_handshake=...` on the URL after Clerk
- * finishes the session. Once signed in, replace with a clean path so the app state matches production.
- */
 export function ClerkHandshakeCleanup() {
   const { isSignedIn, isLoaded } = useAuth();
   const searchParams = useSearchParams();
@@ -16,11 +12,22 @@ export function ClerkHandshakeCleanup() {
   const done = useRef(false);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || done.current) return;
-    if (!searchParams?.has('__clerk_handshake')) return;
+    if (!isLoaded || done.current) return;
+
+    const hasHandshake =
+      searchParams?.has('__clerk_handshake') ||
+      searchParams?.has('__clerk_db_jwt');
+
+    if (!hasHandshake) return;
+
+    // Only clean AFTER Clerk is sure about auth state
+    if (!isSignedIn) return;
+
     done.current = true;
-    const path = pathname && pathname !== '/' ? pathname : '/dashboard';
-    router.replace(path);
+
+    const cleanPath = pathname || '/dashboard';
+
+    router.replace(cleanPath);
   }, [isLoaded, isSignedIn, pathname, router, searchParams]);
 
   return null;

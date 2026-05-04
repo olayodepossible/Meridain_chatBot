@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from functools import lru_cache
 from typing import Annotated, Any
 
@@ -16,8 +17,6 @@ from app.schemas import (
     ChatRequest,
     UserContext,
 )
-
-import os
 
 logger = logging.getLogger("api_gateway")
 
